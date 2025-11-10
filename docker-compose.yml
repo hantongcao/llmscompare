@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  llm-comparison:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_SILICON_FLOW_API_KEY=${VITE_SILICON_FLOW_API_KEY}
+      - VITE_SILICON_FLOW_API_URL=${VITE_SILICON_FLOW_API_URL}
+      - VITE_MODEL_LIST=${VITE_MODEL_LIST}
+    restart: unless-stopped
+    
+  # 可选：使用Nginx反向代理
+  nginx-proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-proxy.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - llm-comparison
+    restart: unless-stopped
