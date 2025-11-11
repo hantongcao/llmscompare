@@ -1,118 +1,131 @@
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const ModelCard = ({ model, status, content, error, progress }) => {
+const ModelCard = ({ model, result, isGenerating }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
-  };
-
-  // 键盘快捷键支持
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // ESC键收起
-      if (e.key === 'Escape' && isExpanded) {
-        setIsExpanded(false);
-      }
-      // 空格键切换
-      if (e.key === ' ' && e.target === document.body) {
-        e.preventDefault();
-        toggleExpand();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isExpanded]);
-
-  const getStatusDisplay = () => {
+  const getStatusColor = (status) => {
     switch (status) {
-      case 'loading':
-        return (
-          <span className="model-status status-loading">
-            <span className="loading-spinner"></span>
-            生成中...
-          </span>
-        );
       case 'complete':
-        return <span className="model-status status-complete">完成</span>;
+        return '#10b981';
+      case 'loading':
+        return '#f59e0b';
       case 'error':
-        return <span className="model-status status-error">错误</span>;
+        return '#ef4444';
       default:
-        return <span className="model-status status-ready">就绪</span>;
+        return '#6b7280';
     }
   };
 
-  const getCardClass = () => {
-    let className = 'model-card';
-    if (status === 'loading') className += ' loading';
-    if (status === 'complete') className += ' active';
-    if (status === 'error') className += ' error';
-    return className;
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'complete':
+        return '完成';
+      case 'loading':
+        return '生成中';
+      case 'error':
+        return '错误';
+      default:
+        return '等待中';
+    }
+  };
+
+  const formatModelName = (modelId) => {
+    const parts = modelId.split('/');
+    return parts[parts.length - 1].replace(/-/g, ' ');
   };
 
   return (
-    <div className={getCardClass()}>
+    <div className={`model-card ${isGenerating ? 'generating' : ''} ${isExpanded ? 'expanded' : ''}`}>
       <div className="model-header">
-        <div className="model-name">{model}</div>
-        <div className="model-actions">
-          {status === 'complete' && content && (
-            <button 
-              className="expand-btn"
-              onClick={toggleExpand}
-              title={isExpanded ? "缩小" : "放大"}
-            >
-              {isExpanded ? '🔍' : '🔍'}
-            </button>
-          )}
-          {getStatusDisplay()}
-        </div>
+        <div className="model-info">
+          <h3 className="model-name">{formatModelName(model)}</h3>
+          <span className="model-id">{model}</span>
       </div>
-      
-      <div className={`model-content ${isExpanded ? 'expanded' : ''}`}>
-        {status === 'loading' && (
-          <div>
-            <p>正在生成回答...</p>
-            {progress > 0 && (
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill" 
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-            )}
+      <div className="model-status">
+        <span 
+          className="status-dot" 
+          style={{ backgroundColor: getStatusColor(result?.status) }}
+        />
+        <span className="status-text">
+          {result ? getStatusText(result.status) : '等待中'}
+        </span>
+        {result?.content && (
+          <button 
+            className="expand-btn"
+            onClick={() => setIsExpanded(!isExpanded)}
+            title={isExpanded ? '缩小' : '放大'}
+          >
+            {isExpanded ? '↗' : '⤢'}
+          </button>
+        )}
+      </div>
+      </div>
+
+      {result?.progress > 0 && (
+        <div className="progress-container">
+          <div 
+            className="progress-bar"
+            style={{ width: `${result.progress}%` }}
+          />
+        </div>
+      )}
+
+      <div className="model-content">
+        {result?.status === 'loading' && !result.content && (
+          <div className="loading-placeholder">
+            <div className="loading-spinner" />
+            <p>模型正在思考中...</p>
           </div>
         )}
-        
-        {isExpanded && (
-            <div className="expanded-header">
-              <button className="collapse-btn" onClick={toggleExpand}>
-                收起
+
+        {result?.content && (
+          <div className="output-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {result.content}
+            </ReactMarkdown>
+          </div>
+        )}
+
+        {result?.status === 'error' && (
+          <div className="error-message">
+            <span>❌</span>
+            <p>{result.error || '调用模型时发生错误'}</p>
+          </div>
+        )}
+      </div>
+
+      {result?.content && (
+        <div className="model-footer">
+          <span className="char-count">
+            {result.content.length} 字符
+          </span>
+        </div>
+      )}
+
+      {/* 放大模态框 */}
+      {isExpanded && result?.content && (
+        <div className="modal-overlay" onClick={() => setIsExpanded(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{formatModelName(model)}</h3>
+              <span className="model-id">{model}</span>
+              <button 
+                className="modal-close"
+                onClick={() => setIsExpanded(false)}
+                title="关闭"
+              >
+                ×
               </button>
             </div>
-          )}
-          {status === 'complete' && content && (
-            <div className="content-wrapper">
+            <div className="modal-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
+                {result.content}
               </ReactMarkdown>
-              <div style={{fontSize: '12px', color: '#666', marginTop: '10px'}}>
-                💡 提示：按空格键切换放大/缩小，ESC键收起
-              </div>
             </div>
-          )}
-        
-        {status === 'error' && (
-          <div className="error-message">
-            <p>错误: {error}</p>
           </div>
-        )}
-        
-        {status === 'ready' && (
-          <p style={{ color: '#999' }}>等待输入...</p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
